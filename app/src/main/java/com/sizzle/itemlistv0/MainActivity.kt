@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.TextFieldValue
@@ -24,19 +25,21 @@ import com.sizzle.itemlistv0.ui.theme.ItemListV0Theme
 // Items
 //------------------------------------------------------------------
 data class Item(
-    val id: Int,
+    var id: Int,
     var title: String
 )
 
 //------------------------------------------------------------------
 // Main View Model
 //------------------------------------------------------------------
-class MainViewModel() {
+class MainViewModel {
 
     //------------------------------------------------------
     // Items Data
     //------------------------------------------------------
     var allItems: List<Item>
+    var filtering: Boolean
+    var filteredItems: List<Item>
     var specificItem: Item
 
     //------------------------------------------------------
@@ -49,6 +52,8 @@ class MainViewModel() {
         val item03 = Item(id = 3, title = "Third Item")
 
         allItems = mutableListOf(item01, item02, item03)
+        filtering = false
+        filteredItems = emptyList()
         specificItem = Item(id = 0, title = "Initial Item")
 
     }   // End Initializer
@@ -57,20 +62,28 @@ class MainViewModel() {
     // Item Methods
     //------------------------------------------------------
     fun insertItem(item: Item) {
-        println("**** insertItem($item)")
         allItems = allItems + item
     }
 
     fun updateItem(item: Item) {
-        println("**** updateItem($item)")
-//        vids?.find { it.id == 2 }?.iLike = true
-        // From: https://stackoverflow.com/questions/54797411/change-a-value-in-mutable-list-in-kotlin
         allItems.find { it.id == item.id }?.title = item.title
     }
 
+    fun filterItems(filterTitleText: String) {
+        filteredItems = allItems.filter { it.title.contains(filterTitleText) }
+    }
+
     fun getItemByID(id: Int) {
-        println("**** getItemByID(id = ${id - 1})")
-        specificItem = allItems[id - 1]
+        allItems.forEach {
+            if (it.id == id) {
+                specificItem.id = it.id
+                specificItem.title = it.title
+            }
+        }
+    }
+
+    fun deleteItem(item: Item) {
+        allItems = allItems - item
     }
 
 }   // End Main View Model
@@ -92,7 +105,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             ItemListV0Theme {
-                // A surface container using the 'background' color from the theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
@@ -146,53 +158,111 @@ fun AppSetup(
 //------------------------------------------------------------------
 // Items List Screen
 //------------------------------------------------------------------
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ItemListScreen(
     navController: NavHostController,
     viewModel: MainViewModel
 ) {
+    var checkedState by remember { mutableStateOf(viewModel.filtering) }
 
     Column {
 
-        //------------------------------------------------------------------
+        //----------------------------------------------------------
         // Title
-        //------------------------------------------------------------------
+        //----------------------------------------------------------
         Text(
-            text = "Item List V1",
+            text = "Item List V0",
             modifier = Modifier.padding(start = 10.dp),
             style = MaterialTheme.typography.titleLarge.copy(color = MaterialTheme.colorScheme.onBackground)
         )
 
-        //------------------------------------------------------------------
-        // Add New Item Button
-        //------------------------------------------------------------------
-        Button(onClick = {
-            navController.navigate(
-                route = NavRoutes.ItemDetailScreen.route
-                        + "/" + "0"
-                        + "/" + "CREATE"
+        Spacer(modifier = Modifier.height(5.dp)); Divider(); Spacer(modifier = Modifier.height(5.dp))
+
+        //----------------------------------------------------------
+        // Control Row
+        //----------------------------------------------------------
+        Row {
+
+            //------------------------------------------------------
+            // Filter Box
+            //------------------------------------------------------
+            val itemFilter: String
+            var textFilter by remember { mutableStateOf(TextFieldValue("")) }
+            OutlinedTextField(
+                value = textFilter,
+                modifier = Modifier.width(100.dp),
+                label = { Text(text = "Filter") },
+                singleLine = true,
+                onValueChange = {
+                    textFilter = it
+
+                    if (checkedState) {
+                        viewModel.filterItems(it.text)
+                    } else {
+                        // Nothing
+                    }
+
+                }
             )
-        }) {
-            Text(
-                text = "Add New Item",
-                modifier = Modifier.padding(start = 10.dp),
-                style = MaterialTheme.typography.titleSmall.copy(color = MaterialTheme.colorScheme.onBackground)
+            itemFilter = textFilter.text
+
+            Spacer(Modifier.width(10.dp))
+
+            //------------------------------------------------------
+            // Filter Checkbox
+            //------------------------------------------------------
+            Checkbox(
+                checked = checkedState,
+                onCheckedChange = {
+                    checkedState = it
+                    viewModel.filtering = !viewModel.filtering
+                    viewModel.filterItems(itemFilter)
+                }
             )
+
+            Spacer(Modifier.width(20.dp))
+
+            //------------------------------------------------------
+            // Add New Item Button
+            //------------------------------------------------------
+            Button(onClick = {
+                navController.navigate(
+                    route = NavRoutes.ItemDetailScreen.route
+                            + "/" + "0"
+                            + "/" + "CREATE"
+                )
+            }) {
+                Text(
+                    text = "New Item",
+                    modifier = Modifier
+                        .height(40.dp)
+                        .align(Alignment.CenterVertically),
+                    style = MaterialTheme.typography.titleSmall.copy(color = MaterialTheme.colorScheme.background)
+                )
+            }
+
         }
 
-        Divider()
+        Spacer(modifier = Modifier.height(5.dp)); Divider(); Spacer(modifier = Modifier.height(5.dp))
 
         //------------------------------------------------------------------
-        // List All Items
+        // List Items
         //------------------------------------------------------------------
-        viewModel.allItems.forEach {item ->
+
+        val myItems: List<Item> = if (viewModel.filtering) {
+            viewModel.filteredItems
+        } else {
+            viewModel.allItems
+        }
+
+        myItems.forEach {item ->
             ClickableText(
                 text = AnnotatedString("Item: ${item.title}"),
                 modifier = Modifier.padding(start = 10.dp),
                 style = MaterialTheme.typography.titleMedium.copy(color = MaterialTheme.colorScheme.onBackground),
                 onClick = {
                     viewModel.getItemByID(item.id)
-                    println("**** NavRoutes.ItemDetailScreen id = $item.id, crud = UPDATE")
                     navController.navigate(
                         route = NavRoutes.ItemDetailScreen.route
                                 + "/" + item.id
@@ -200,9 +270,7 @@ fun ItemListScreen(
                     )
                 }	// End On Click
             )	// End Clickable Text
-            Spacer(modifier = Modifier.height(5.dp))
-            Divider()
-            Spacer(modifier = Modifier.height(5.dp))
+            Spacer(modifier = Modifier.height(5.dp)); Divider(); Spacer(modifier = Modifier.height(5.dp))
         }	// End All Items For Each
 
     }	// End Column
@@ -221,7 +289,7 @@ fun ItemDetailScreen(
     crud: String? = "NONE"
 ) {
 
-    val itemID: Int
+    val itemID: String
     var itemTitle: String
     var myItem: Item
 
@@ -230,7 +298,6 @@ fun ItemDetailScreen(
         // Create New Item
         //---------------------------------------------------------
         "CREATE" -> {
-            println("**** ItemDetailScreen(id = $id, crud = CREATE)")
 
             Column {
 
@@ -262,8 +329,7 @@ fun ItemDetailScreen(
                     }) {
                     Text(
                         text = "Submit",
-                        modifier = Modifier.padding(start = 10.dp),
-                        style = MaterialTheme.typography.titleSmall.copy(color = MaterialTheme.colorScheme.onBackground),
+                        style = MaterialTheme.typography.titleSmall.copy(color = MaterialTheme.colorScheme.background),
                     )
                 }    // End Add New Item Button
 
@@ -274,30 +340,26 @@ fun ItemDetailScreen(
         // Update Existing Item
         //---------------------------------------------------------
         "UPDATE" -> {
-            println("**** ItemDetailScreen(id = $id, crud = READ or UPDATE)")
 
             if (id != null) {
                 viewModel.getItemByID(id)
 
                 myItem = viewModel.specificItem
 
-                itemID = myItem.id
+                itemID = myItem.id.toString()
                 itemTitle = myItem.title
-
-                println("**** Current Details are: $itemID | $itemTitle |")
 
                 Column {
 
                     //--- Item ID Text Field
-                    Text(text = "ID (Read Only) = ${itemID.toString()}")
-//                    OutlinedTextField(
-//                        value = itemID,
-//                        enabled = false,
-//                        readOnly = true,
-//                        label = "ID",
-//                        singleLine = true,
-//                        onValueChange = { }
-//                    )
+                    OutlinedTextField(
+                        value = itemID,
+                        enabled = false,
+                        readOnly = true,
+                        label = { Text(text = "ID") },
+                        singleLine = true,
+                        onValueChange = {  }
+                    )
 
                     //--- Item Title Text Field
                     var textTitle by remember { mutableStateOf(TextFieldValue(itemTitle)) }
@@ -313,7 +375,7 @@ fun ItemDetailScreen(
 
                     //--- Create Updated Item from Parts
                     myItem = Item(
-                        id = itemID,
+                        id = itemID.toInt(),
                         title = itemTitle
                     )
 
@@ -327,8 +389,23 @@ fun ItemDetailScreen(
                         }) {
                         Text(
                             text = "Submit",
-                            modifier = Modifier.padding(start = 10.dp),
-                            style = MaterialTheme.typography.titleSmall.copy(color = MaterialTheme.colorScheme.onBackground),
+                            style = MaterialTheme.typography.titleSmall.copy(color = MaterialTheme.colorScheme.background),
+                        )
+                    }    // End Update Existing Item Button
+
+                    Spacer(Modifier.height(10.dp))
+
+                    //--- Delete this Item Button
+                    Button(
+                        onClick = {
+                            navController.navigate(route = NavRoutes.ItemListScreen.route) {
+                                popUpTo(NavRoutes.ItemListScreen.route)
+                            }
+                            viewModel.deleteItem(myItem)
+                        }) {
+                        Text(
+                            text = "Delete this Item",
+                            style = MaterialTheme.typography.titleSmall.copy(color = MaterialTheme.colorScheme.background),
                         )
                     }    // End Update Existing Item Button
 
@@ -341,7 +418,7 @@ fun ItemDetailScreen(
         // Else
         //---------------------------------------------------------
         else -> {
-            println("**** ItemDetailScreen(Else)")
+            // Nothing Else To Do
         }
     }   // End When
 
