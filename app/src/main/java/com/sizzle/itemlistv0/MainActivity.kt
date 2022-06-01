@@ -197,10 +197,12 @@ fun ItemListScreen(
                 onValueChange = {
                     textFilter = it
 
+                    //--- Is checkbox checked?
                     if (checkedState) {
+                        //--- Yes: Recompose item list
                         viewModel.filterItems(it.text)
                     } else {
-                        // Nothing
+                        //--- No: Do nothing
                     }
 
                 }
@@ -250,10 +252,11 @@ fun ItemListScreen(
         // List Items
         //------------------------------------------------------------------
 
+        //--- List depends on view model filtering variable
         val myItems: List<Item> = if (viewModel.filtering) {
-            viewModel.filteredItems
+            viewModel.filteredItems     // Use filtered items list
         } else {
-            viewModel.allItems
+            viewModel.allItems          // Use all items list
         }
 
         myItems.forEach {item ->
@@ -341,17 +344,20 @@ fun ItemDetailScreen(
         //---------------------------------------------------------
         "UPDATE" -> {
 
+            //--- Make sure id isn't null, because it's not guaranteed
             if (id != null) {
+
+                //--- Populate specific item view model variable
                 viewModel.getItemByID(id)
 
+                //--- Get specific item info
                 myItem = viewModel.specificItem
-
                 itemID = myItem.id.toString()
                 itemTitle = myItem.title
 
                 Column {
 
-                    //--- Item ID Text Field
+                    //--- Item ID Text Field (read only)
                     OutlinedTextField(
                         value = itemID,
                         enabled = false,
